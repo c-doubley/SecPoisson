@@ -54,6 +54,11 @@ class TrustedParty {
       absl::Span<const PrgArrayDesc> mac_descs, int64_t m, int64_t n, int64_t k,
       uint128_t global_key) const;
 
+  std::vector<NdArrayRef> adjustAuthHadam(
+      absl::Span<const PrgArrayDesc> descs,
+      absl::Span<const PrgArrayDesc> mac_descs, int64_t m, int64_t n, 
+      uint128_t global_key) const;
+
   std::vector<NdArrayRef> adjustAuthAnd(
       absl::Span<const PrgArrayDesc> descs,
       absl::Span<const PrgArrayDesc> mac_descs, uint128_t global_key) const;

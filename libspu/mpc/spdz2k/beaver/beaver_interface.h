@@ -64,6 +64,9 @@ class Beaver {
   // public coin, used in malicious model, all party generate new seed, then
   // get exactly the same random variable.
   virtual NdArrayRef genPublCoin(FieldType field, int64_t numel) = 0;
+
+  virtual Triple_Pair AuthHadam(FieldType field, int64_t M, int64_t N,
+                              size_t k, size_t s) = 0;
 };
 
 }  // namespace spu::mpc::spdz2k

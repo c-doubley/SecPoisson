@@ -124,6 +124,16 @@ OptionalAPI<Value> mul_av(SPUContext* ctx, const Value& x, const Value& y) {
   return NotAvailable;
 }
 
+OptionalAPI<Value> hadam_av(SPUContext* ctx, const Value& x, const Value& y) {
+  TRY_DISPATCH(ctx, x, y);
+  return NotAvailable;
+}
+
+OptionalAPI<Value> hadam_aa(SPUContext* ctx, const Value& x, const Value& y) {
+  TRY_DISPATCH(ctx, x, y);
+  return NotAvailable;
+}
+
 Value mul_a1b(SPUContext* ctx, const Value& x, const Value& y) {
   TILED_DISPATCH(ctx, x, y);
 }

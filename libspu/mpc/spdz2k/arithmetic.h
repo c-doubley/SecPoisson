@@ -141,6 +141,42 @@ class MulAA : public BinaryKernel {
                   const NdArrayRef& rhs) const override;
 };
 
+// class HadamAP : public BinaryKernel {
+//  public:
+//   static constexpr const char* kBindName() { return "hadam_ap"; }
+
+//   ce::CExpr latency() const override { return ce::Const(0); }
+
+//   ce::CExpr comm() const override { return ce::Const(0); }
+
+//   NdArrayRef proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
+//                   const NdArrayRef& rhs) const override;
+// };
+
+
+class HadamAA : public BinaryKernel {
+ public:
+  static constexpr const char* kBindName() { return "hadam_aa"; }
+
+  // TODO(jint) express M, N, K
+  Kind kind() const override { return Kind::Dynamic; }
+
+  NdArrayRef proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
+                  const NdArrayRef& rhs) const override;
+};
+
+// class HadamAV : public BinaryKernel {
+//  public:
+//   static constexpr const char* kBindName() { return "hadam_av"; }
+
+//   // TODO(jint) express M, N, K
+//   Kind kind() const override { return Kind::Dynamic; }
+
+//   NdArrayRef proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
+//                   const NdArrayRef& rhs) const override;
+// };
+
+
 ////////////////////////////////////////////////////////////////////
 // matmul family
 ////////////////////////////////////////////////////////////////////
@@ -170,6 +206,9 @@ class MatMulAA : public MatmulKernel {
   NdArrayRef proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
                   const NdArrayRef& rhs) const override;
 };
+
+
+
 
 class LShiftA : public ShiftKernel {
  public:

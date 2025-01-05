@@ -43,6 +43,9 @@ Value mul_aa(SPUContext* ctx, const Value& x, const Value& y);
 Value square_a(SPUContext* ctx, const Value& x);
 OptionalAPI<Value> mul_av(SPUContext* ctx, const Value& x, const Value& y);
 
+OptionalAPI<Value> hadam_av(SPUContext* ctx, const Value& x, const Value& y);
+OptionalAPI<Value> hadam_aa(SPUContext* ctx, const Value& x, const Value& y);
+
 Value mul_a1b(SPUContext* ctx, const Value& x, const Value& y);
 OptionalAPI<Value> mul_a1bv(SPUContext* ctx, const Value& x, const Value& y);
 

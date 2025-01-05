@@ -509,6 +509,48 @@ NdArrayRef MulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   return makeAShare(z, zmac, field);
 }
 
+
+NdArrayRef HadamAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
+                       const NdArrayRef& rhs) const {
+  const auto field = lhs.eltype().as<Ring2k>()->field();
+  auto* comm = ctx->getState<Communicator>();
+  auto* beaver = ctx->getState<Spdz2kState>()->beaver();
+  const auto key = ctx->getState<Spdz2kState>()->key();
+  const auto k_bits = ctx->getState<Spdz2kState>()->k();
+  const auto s_bits = ctx->getState<Spdz2kState>()->s();
+
+  const auto& x = getValueShare(lhs);
+  const auto& y = getValueShare(rhs);
+
+  // generate beaver multiple triple.
+  auto [vec, mac_vec] = beaver->AuthHadam(field, lhs.shape()[0], rhs.shape()[1],
+                                         k_bits, s_bits);
+  auto [a, b, c] = vec;
+  auto [a_mac, b_mac, c_mac] = mac_vec;
+
+  // open x-a & y-b
+  auto res = vmap({ring_sub(x, a), ring_sub(y, b)}, [&](const NdArrayRef& s) {
+    return comm->allReduce(ReduceOp::ADD, s, kBindName());
+  });
+  auto p_e = std::move(res[0]);
+  auto p_f = std::move(res[1]);
+  auto p_ef = ring_mul(p_e, p_f);
+
+  // z = p_e hadamard b + a hadamard p_f + c;
+  auto z = ring_add(ring_add(ring_mul(p_e, b), ring_mul(a, p_f)), c);
+  if (comm->getRank() == 0) {
+    // z += p_e hadamard p_f;
+    ring_add_(z, ring_mul(p_e, p_f));
+  }
+
+  // zmac = p_e hadamard b_mac + a_mac hadamard p_f + c_mac + (p_e hadamard p_f) * key;
+  auto zmac = ring_add(ring_mul(p_e, b_mac), ring_mul(a_mac, p_f));
+  ring_add_(zmac, c_mac);
+  ring_add_(zmac, ring_mul(p_ef, key));
+
+  return makeAShare(z, zmac, field);
+}
+
 ////////////////////////////////////////////////////////////////////
 // matmul family
 ////////////////////////////////////////////////////////////////////

@@ -66,6 +66,9 @@ class BeaverTfpUnsafe final : public Beaver {
   Triple_Pair AuthDot(FieldType field, int64_t M, int64_t N, int64_t K,
                       size_t k, size_t s) override;
 
+  Triple_Pair AuthHadam(FieldType field, int64_t M, int64_t N,
+                     size_t rank, size_t npc) override;
+
   Triple_Pair AuthAnd(FieldType field, const Shape& shape, size_t s) override;
 
   Pair_Pair AuthTrunc(FieldType field, const Shape& shape, size_t bits,

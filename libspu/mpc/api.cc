@@ -484,6 +484,26 @@ Value mul_pp(SPUContext* ctx, const Value& x, const Value& y) {
   FORCE_DISPATCH(ctx, x, y);
 }
 
+Value hadam_pp(SPUContext* ctx, const Value& x, const Value& y) {
+  FORCE_DISPATCH(ctx, x, y);
+}
+
+OptionalAPI<Value> hadam_sv(SPUContext* ctx, const Value& x, const Value& y) {
+  SPU_TRACE_MPC_DISP(ctx, x, y);
+  if (auto ret = hadam_av(ctx, x, y)) {
+    return ret.value();
+  }
+  return NotAvailable;
+}
+
+OptionalAPI<Value> hadam_ss(SPUContext* ctx, const Value& x, const Value& y) {
+  SPU_TRACE_MPC_DISP(ctx, x, y);
+  if (auto ret = hadam_aa(ctx, x, y)) {
+    return ret.value();
+  }
+  return NotAvailable;
+}
+
 Value square_s(SPUContext* ctx, const Value& x) {
   if (IsA(x)) {
     TRY_NAMED_DISPATCH(ctx, "square_a", x);

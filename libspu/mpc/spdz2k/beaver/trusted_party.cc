@@ -204,6 +204,37 @@ std::vector<NdArrayRef> TrustedParty::adjustAuthDot(
   return {r0[2], mac_r0[0], mac_r0[1], mac_r0[2]};
 }
 
+
+std::vector<NdArrayRef> TrustedParty::adjustAuthHadam(
+    absl::Span<const PrgArrayDesc> descs,
+    absl::Span<const PrgArrayDesc> mac_descs, int64_t m, int64_t n,
+    uint128_t global_key) const {
+  SPU_ENFORCE_EQ(descs.size(), 3U);
+  SPU_ENFORCE(descs[0].shape == (std::vector<int64_t>{m, n}));
+  SPU_ENFORCE(descs[1].shape == (std::vector<int64_t>{m, n}));
+  SPU_ENFORCE(descs[2].shape == (std::vector<int64_t>{m, n}));
+
+  auto [r0, rs] = reconstruct(RecOp::ADD, getSeeds(), descs);
+  // r0[2] += rs[0] hadamard rs[1] - rs[2];
+  ring_add_(r0[2], ring_sub(ring_mul(rs[0], rs[1]), rs[2]));
+
+  auto [mac_r0, mac_rs] = reconstruct(RecOp::ADD, getSeeds(), mac_descs);
+  // mac_r0[0] += rs[0] * global_key - mac_rs[0];
+  auto amac = ring_mul(rs[0], global_key);
+  ring_add_(mac_r0[0], ring_sub(amac, mac_rs[0]));
+
+  // mac_r0[1] += rs[1] * global_key - mac_rs[1];
+  auto bmac = ring_mul(rs[1], global_key);
+  ring_add_(mac_r0[1], ring_sub(bmac, mac_rs[1]));
+
+  // mac_r0[2] += rs[0] hadamard rs[1] * global_key - mac_rs[2];
+  auto c = ring_mul(rs[0], rs[1]);
+  auto cmac = ring_mul(c, global_key);
+  ring_add_(mac_r0[2], ring_sub(cmac, mac_rs[2]));
+  return {r0[2], mac_r0[0], mac_r0[1], mac_r0[2]};
+}
+
+
 std::vector<NdArrayRef> TrustedParty::adjustAuthAnd(
     absl::Span<const PrgArrayDesc> descs,
     absl::Span<const PrgArrayDesc> mac_descs, uint128_t global_key) const {

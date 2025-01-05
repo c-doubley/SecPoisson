@@ -169,6 +169,34 @@ BeaverTfpUnsafe::Triple_Pair BeaverTfpUnsafe::AuthDot(FieldType field,
   return {{a, b, c}, {a_mac, b_mac, c_mac}};
 }
 
+
+BeaverTfpUnsafe::Triple_Pair BeaverTfpUnsafe::AuthHadam(FieldType field,
+                                                      int64_t m, int64_t n,
+                                                      size_t /*k_bits*/,
+                                                      size_t /*s_bits*/) {
+  std::vector<PrgArrayDesc> descs(3);
+  std::vector<PrgArrayDesc> mac_descs(3);
+
+  auto a = prgCreateArray(field, {m, n}, seed_, &counter_, descs.data());
+  auto b = prgCreateArray(field, {m, n}, seed_, &counter_, &descs[1]);
+  auto c = prgCreateArray(field, {m, n}, seed_, &counter_, &descs[2]);
+
+  auto a_mac =
+      prgCreateArray(field, {m, n}, seed_, &counter_, mac_descs.data());
+  auto b_mac = prgCreateArray(field, {m, n}, seed_, &counter_, &mac_descs[1]);
+  auto c_mac = prgCreateArray(field, {m, n}, seed_, &counter_, &mac_descs[2]);
+
+  if (comm_->getRank() == 0) {
+    auto v = tp_.adjustAuthHadam(descs, mac_descs, m, n, global_key_);
+    c = v[0];
+    a_mac = v[1];
+    b_mac = v[2];
+    c_mac = v[3];
+  }
+
+  return {{a, b, c}, {a_mac, b_mac, c_mac}};
+}
+
 BeaverTfpUnsafe::Triple_Pair BeaverTfpUnsafe::AuthAnd(FieldType field,
                                                       const Shape& shape,
                                                       size_t /*s*/) {

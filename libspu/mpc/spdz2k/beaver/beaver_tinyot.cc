@@ -531,6 +531,52 @@ BeaverTinyOt::Triple_Pair BeaverTinyOt::AuthDot(FieldType field, int64_t M,
   return {{a, b, c}, {a_mac, b_mac, c_mac}};
 }
 
+// error need to change
+BeaverTinyOt::Triple_Pair BeaverTinyOt::AuthHadam(FieldType field, int64_t M,
+                                                int64_t N, size_t k,
+                                                size_t s) {
+  // Dot
+  auto [a_ext, b, c_ext] = dot(field, 2 * M, N, N, k, s);
+
+  // Authenticate
+  auto a_ext_mac = AuthArrayRef(a_ext, field, k, s);
+  auto b_mac = AuthArrayRef(b, field, k, s);
+  auto c_ext_mac = AuthArrayRef(c_ext, field, k, s);
+
+  auto a = a_ext.slice({0, 0}, {M, N}, {1, 1});
+  auto a_mac = a_ext_mac.slice({0, 0}, {M, N}, {1, 1});
+  auto c = c_ext.slice({0, 0}, {M, N}, {1, 1});
+  auto c_mac = c_ext_mac.slice({0, 0}, {M, N}, {1, 1});
+
+  // Sacrifice
+  auto a2 = a_ext.slice({M, 0}, {2 * M, N}, {1, 1});
+  auto a2_mac = a_ext_mac.slice({M, 0}, {2 * M, N}, {1, 1});
+  auto c2 = c_ext.slice({M, 0}, {2 * M, N}, {1, 1});
+  auto c2_mac = c_ext_mac.slice({M, 0}, {2 * M, N}, {1, 1});
+
+  auto t = prg_state_->genPubl(field, {M, M});
+  auto rou = ring_sub(ring_mmul(t, a), a2);
+  auto rou_mac = ring_sub(ring_mmul(t, a_mac), a2_mac);
+
+  auto [pub_rou, check_rou_mac] = BatchOpen(rou, rou_mac, k, s);
+  SPU_ENFORCE(BatchMacCheck(pub_rou, check_rou_mac, k, s));
+
+  auto t_delta = ring_sub(ring_mmul(t, c), c2);
+  auto delta = ring_sub(t_delta, ring_mmul(pub_rou, b));
+
+  auto t_delta_mac = ring_sub(ring_mmul(t, c_mac), c2_mac);
+  auto delta_mac = ring_sub(t_delta_mac, ring_mmul(pub_rou, b_mac));
+
+  auto [pub_delta, check_delta_mac] = BatchOpen(delta, delta_mac, k, s);
+  SPU_ENFORCE(BatchMacCheck(pub_delta, check_delta_mac, k, s));
+
+  // Output
+  return {{a, b, c}, {a_mac, b_mac, c_mac}};
+
+}
+
+
+
 BeaverTinyOt::Pair_Pair BeaverTinyOt::AuthTrunc(FieldType field,
                                                 const Shape& shape, size_t bits,
                                                 size_t k, size_t s) {

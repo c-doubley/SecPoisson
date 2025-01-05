@@ -123,6 +123,11 @@ Value mul_sp(SPUContext* ctx, const Value& x, const Value& y);
 Value mul_vv(SPUContext* ctx, const Value& x, const Value& y);
 Value mul_vp(SPUContext* ctx, const Value& x, const Value& y);
 Value mul_pp(SPUContext* ctx, const Value& x, const Value& y);
+// hadamard product
+Value hadam_pp(SPUContext* ctx, const Value& x, const Value& y);
+OptionalAPI<Value> hadam_sv(SPUContext* ctx, const Value& x, const Value& y);
+OptionalAPI<Value> hadam_ss(SPUContext* ctx, const Value& x, const Value& y);
+
 Value square_s(SPUContext* ctx, const Value& x);
 Value square_v(SPUContext* ctx, const Value& x);
 Value square_p(SPUContext* ctx, const Value& x);

@@ -48,6 +48,9 @@ void Factory::RegisterProtocol(
     case ProtocolKind::SECURENN: {
       return regSecurennProtocol(ctx, lctx);
     }
+    case ProtocolKind::SPDZ2K: {
+      return regSpdz2kProtocol(ctx, lctx);
+    }
     default: {
       SPU_THROW("Invalid protocol kind {}", ctx->config().protocol());
     }
@@ -71,6 +74,9 @@ std::unique_ptr<IoInterface> Factory::CreateIO(const RuntimeConfig& conf,
     }
     case ProtocolKind::SECURENN: {
       return securenn::makeSecurennIo(conf.field(), npc);
+    }
+    case ProtocolKind::SPDZ2K: {
+      return securenn::makeSpdz2kIo(conf.field(), npc);
     }
     default: {
       SPU_THROW("Invalid protocol kind {}", conf.protocol());
