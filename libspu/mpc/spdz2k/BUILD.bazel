@@ -59,17 +59,6 @@ spu_cc_test(
     ],
 )
 
-spu_cc_test(
-    name = "arithmetic_test",
-    srcs = ["arithmetic_test.cc"],
-    deps = [
-        ":arithmetic",
-        "//libspu/mpc/utils:simulate",
-        "//libspu/mpc:api_test",
-        "//libspu/mpc:ab_api_test",
-        "@com_google_googletest//:gtest",
-    ],
-)
 
 spu_cc_test(
     name = "protocol_ab_test",

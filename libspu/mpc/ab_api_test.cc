@@ -351,8 +351,8 @@ TEST_P(ArithmeticTest, MatMulAA) {
   const size_t npc = std::get<2>(GetParam());
 
   const int64_t M = 3;
-  const int64_t K = 4;
-  const int64_t N = 3;
+  const int64_t K = 400;
+  const int64_t N = 1;
   const Shape shape_A = {M, K};
   const Shape shape_B = {K, N};
   const Shape shape_C = {M, N};

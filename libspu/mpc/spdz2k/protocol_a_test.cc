@@ -92,8 +92,8 @@ TEST_P(ArithmeticTest, HadamSS) {
   const size_t npc = std::get<2>(GetParam());
 
   // 定义矩阵维度
-  const int64_t M = 2;  // 行数
-  const int64_t N = 3;  // 列数
+  const int64_t M = 70;  // 行数
+  const int64_t N = 60;  // 列数
   const Shape shape_A = {M, N};
   const Shape shape_B = {M, N};  // Hadamard积要求两个矩阵维度相同
 

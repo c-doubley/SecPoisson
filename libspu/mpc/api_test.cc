@@ -438,6 +438,50 @@ TEST_P(ApiTest, MatMulSS) {
     EXPECT_VALUE_EQ(r_ss, r_pp);
     EXPECT_VALUE_EQ(r_ss2, r_pp2);
   });
+  // const int64_t M1 = 1;
+  // const int64_t K1 = 400;
+  // const int64_t N1 = 60;
+  // const int64_t M2 = 70;
+  // const int64_t K2 = 400;
+  // const int64_t N2 = 1;
+  // const Shape shape_A1 = {M1, K1};
+  // const Shape shape_B1 = {K1, N1};
+  // const Shape shape_A2 = {M2, K2};
+  // const Shape shape_B2 = {K2, N2};
+
+  // std::cout << "here npc: " << npc << std::endl;
+  // std::cout.flush();
+  // utils::simulate(npc, [&](const std::shared_ptr<yacl::link::Context>& lctx) {
+  //   auto sctx = factory(conf, lctx);
+
+  //   /* GIVEN */
+  //   auto p0 = rand_p(sctx.get(), shape_A1);
+  //   auto p1 = rand_p(sctx.get(), shape_B1);
+  //   auto p2 = rand_p(sctx.get(), shape_A2);
+  //   auto p3 = rand_p(sctx.get(), shape_B2);
+
+  //   SPDLOG_INFO("{} {} {} {}", p0, p1, p2, p3);
+
+  //   auto s0 = p2s(sctx.get(), p0);
+  //   auto s1 = p2s(sctx.get(), p1);
+  //   auto s2 = p2s(sctx.get(), p2);
+  //   auto s3 = p2s(sctx.get(), p3);
+
+  //   /* WHEN */
+  //   auto tmp = mmul_ss(sctx.get(), s0, s1);
+  //   auto tmp2 = mmul_ss(sctx.get(), s2, s3);
+
+  //   auto r_ss = s2p(sctx.get(), tmp);
+  //   auto r_pp = mmul_pp(sctx.get(), p0, p1);
+
+  //   auto r_ss2 = s2p(sctx.get(), tmp2);
+  //   auto r_pp2 = mmul_pp(sctx.get(), p2, p3);
+  //   std::cout << "here r_ss: " << r_pp << std::endl;
+
+  //   /* THEN */
+  //   EXPECT_VALUE_EQ(r_ss, r_pp);
+  //   EXPECT_VALUE_EQ(r_ss2, r_pp2);
+  // });
 }
 
 TEST_P(ApiTest, MmulSP) {

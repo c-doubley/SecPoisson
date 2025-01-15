@@ -86,9 +86,58 @@ void matmul(int64_t M, int64_t N, int64_t K, const T* A, int64_t LDA,
   // auto expected_num_threads = std::max((M * K + kMinTaskSize) / kMinTaskSize,
   //                                     (N * K + kMinTaskSize) / kMinTaskSize);
 
-  Eigen::setNbThreads(4);
+  // Eigen::setNbThreads(4);
+  // c.noalias() = a * b;
 
-  c.noalias() = a * b;
+  // 并行化每一列的计算
+  // #pragma omp parallel for
+  // for (int64_t j = 0; j < N; ++j) {
+  //   for (int64_t i = 0; i < M; ++i) {
+  //     c(i, j) = 0;
+  //     for (int64_t k = 0; k < K; ++k) {
+  //       c(i, j) += a(i, k) * b(k, j);
+  //     }
+  //   }
+  // }
+
+    // 初始化C为零矩阵
+    c.setZero();
+
+    // 获取最大线程数
+    int num_threads = omp_get_max_threads();
+
+    // 为每个线程分配一个局部的部分结果矩阵
+    std::vector<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> partial_cs(
+        num_threads, Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>(M, N));
+
+    // 初始化每个局部矩阵为零
+    for(auto &partial_c : partial_cs){
+        partial_c.setZero();
+    }
+
+    // 并行化计算
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num(); // 获取当前线程编号
+        Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> &local_c = partial_cs[tid];
+
+        // 并行化k维度的循环
+        #pragma omp for
+        for(int64_t k = 0; k < K; ++k){
+            for(int64_t j = 0; j < N; ++j){
+                T bkj = b(k, j); // 获取B(k, j)
+                // 累加A的第k列乘以B(k, j)到局部矩阵
+                local_c.col(j) += a.col(k) * bkj;
+            }
+        }
+    }
+
+    // 将所有线程的局部结果累加到最终的C矩阵中
+    for(const auto &partial_c : partial_cs){
+        c += partial_c;
+    }
+
+
 }
 
 }  // namespace spu::mpc::linalg

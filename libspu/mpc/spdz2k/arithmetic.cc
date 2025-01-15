@@ -522,11 +522,24 @@ NdArrayRef HadamAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   const auto& x = getValueShare(lhs);
   const auto& y = getValueShare(rhs);
 
+  // 在生成beaver triple之前记录起始时间和通信量
+  auto start_time = std::chrono::high_resolution_clock::now();
+  auto prev_comm = comm->getStats();
   // generate beaver multiple triple.
   auto [vec, mac_vec] = beaver->AuthHadam(field, lhs.shape()[0], rhs.shape()[1],
                                          k_bits, s_bits);
   auto [a, b, c] = vec;
   auto [a_mac, b_mac, c_mac] = mac_vec;
+
+  // 计算耗时和通信量
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+  auto comm_cost = comm->getStats() - prev_comm;
+
+  // 输出结果
+  SPDLOG_INFO("Beaver triple generation time: {} microseconds", duration.count());
+  SPDLOG_INFO("Beaver triple generation communication: {} bytes", comm_cost.comm);
+  SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
 
   // open x-a & y-b
   auto res = vmap({ring_sub(x, a), ring_sub(y, b)}, [&](const NdArrayRef& s) {
@@ -581,11 +594,25 @@ NdArrayRef MatMulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   const auto& x = getValueShare(lhs);
   const auto& y = getValueShare(rhs);
 
+
+  // 在生成beaver triple之前记录起始时间和通信量
+  auto start_time = std::chrono::high_resolution_clock::now();
+  auto prev_comm = comm->getStats();
   // generate beaver multiple triple.
   auto [vec, mac_vec] = beaver->AuthDot(field, lhs.shape()[0], rhs.shape()[1],
                                         lhs.shape()[1], k_bits, s_bits);
   auto [a, b, c] = vec;
   auto [a_mac, b_mac, c_mac] = mac_vec;
+
+  // 计算耗时和通信量
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+  auto comm_cost = comm->getStats() - prev_comm;
+
+  // 输出结果
+  SPDLOG_INFO("Beaver triple generation time: {} microseconds", duration.count());
+  SPDLOG_INFO("Beaver triple generation communication: {} bytes", comm_cost.comm);
+  SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
 
   // open x-a & y-b
   auto res = vmap({ring_sub(x, a), ring_sub(y, b)}, [&](const NdArrayRef& s) {
