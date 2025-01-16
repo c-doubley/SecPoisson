@@ -18,13 +18,13 @@ RuntimeConfig makeConfig(FieldType field) {
   return conf;
 }
 
-// std::unique_ptr<SPUContext> makeMpcSpdz2kProtocol(
-//     const RuntimeConfig& rt, const std::shared_ptr<yacl::link::Context>& lctx) {
-//   RuntimeConfig mpc_rt = rt;
-//   mpc_rt.set_beaver_type(RuntimeConfig_BeaverType_MultiParty);
+std::unique_ptr<SPUContext> makeMpcSpdz2kProtocol(
+    const RuntimeConfig& rt, const std::shared_ptr<yacl::link::Context>& lctx) {
+  RuntimeConfig mpc_rt = rt;
+  mpc_rt.set_beaver_type(RuntimeConfig_BeaverType_MultiParty);
 
-//   return makeSpdz2kProtocol(mpc_rt, lctx);
-// }
+  return makeSpdz2kProtocol(mpc_rt, lctx);
+}
 }  // namespace
 
 INSTANTIATE_TEST_SUITE_P(
@@ -34,6 +34,23 @@ INSTANTIATE_TEST_SUITE_P(
     [](const testing::TestParamInfo<ArithmeticTest::ParamType>& p) {
       return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
                          std::get<1>(p.param).field(), std::get<2>(p.param));
+    });
+
+
+class BeaverCacheTest : public ::testing::TestWithParam<OpTestParams> {};
+
+INSTANTIATE_TEST_SUITE_P(
+    Spdz2k, BeaverCacheTest,
+    testing::Combine(testing::Values(CreateObjectFn(makeSpdz2kProtocol, "tfp")),
+                                     CreateObjectFn(makeMpcSpdz2kProtocol, "mpc"),         //
+                     testing::Values(makeConfig(FieldType::FM32),    //
+                                     makeConfig(FieldType::FM64),    //
+                                     makeConfig(FieldType::FM128)),  //
+                     testing::Values(2, 3, 5)),                      //
+    [](const testing::TestParamInfo<BeaverCacheTest::ParamType>& p) {
+      return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
+                         std::get<1>(p.param).field(), std::get<2>(p.param));
+      ;
     });
 
 
@@ -158,5 +175,91 @@ TEST_P(ArithmeticTest, HadamSS) {
 
   printf("=== Test case HadamSS completed ===\n\n");
 }
+
+TEST_P(BeaverCacheTest, ExpA) {
+  const auto factory = std::get<0>(GetParam());
+  const RuntimeConfig& conf = std::get<1>(GetParam());
+  const size_t npc = std::get<2>(GetParam());
+
+  // spdz2k exp only supports 2 party
+  if (npc != 2 || conf.field() != FieldType::FM128) {
+    return;
+  }
+  auto fxp = conf.fxp_fraction_bits();
+
+  NdArrayRef ring2k_shr[2];
+
+  int64_t numel = 100;
+  FieldType field = conf.field();
+
+  std::uniform_real_distribution<double> dist(-18.0, 15.0);
+  std::default_random_engine rd;
+  std::vector<double> real_vec(numel);
+  for (int64_t i = 0; i < numel; ++i) {
+    real_vec[i] = static_cast<double>(std::round((dist(rd) * (1L << fxp)))) / (1L << fxp);
+  }
+
+  auto rnd_msg = ring_zeros(field, {numel});
+
+  DISPATCH_ALL_FIELDS(field, [&]() {
+    using sT = std::make_signed<ring2k_t>::type;
+    NdArrayView<sT> xmsg(rnd_msg);
+    pforeach(0, numel, [&](int64_t i) {
+      xmsg[i] = std::round(real_vec[i] * (1L << fxp));
+    });
+  });
+
+  ring2k_shr[0] = ring_rand(field, rnd_msg.shape())
+                      .as(makeType<spu::mpc::spdz2k::AShrTy>(field));
+  ring2k_shr[1] = ring_sub(rnd_msg, ring2k_shr[0])
+                      .as(makeType<spu::mpc::spdz2k::AShrTy>(field));
+
+  NdArrayRef outp_pub;
+  NdArrayRef outp[2];
+
+  utils::simulate(npc, [&](const std::shared_ptr<yacl::link::Context>& lctx) {
+    auto obj = factory(conf, lctx);
+
+    KernelEvalContext kcontext(obj.get());
+
+    int rank = lctx->Rank();
+
+    size_t bytes = lctx->GetStats()->sent_bytes;
+    size_t action = lctx->GetStats()->sent_actions;
+
+    spu::mpc::spdz2k::ExpA exp;
+    outp[rank] = exp.proc(&kcontext, ring2k_shr[rank]);
+
+    bytes = lctx->GetStats()->sent_bytes - bytes;
+    action = lctx->GetStats()->sent_actions - action;
+    SPDLOG_INFO("Spdz2kExpA ({}) for n = {}, sent {} MiB ({} B per), actions {}",
+                field, numel, bytes * 1. / 1024. / 1024., bytes * 1. / numel,
+                action);
+  });
+  assert(outp[0].eltype() == ring2k_shr[0].eltype());
+  auto got = ring_add(outp[0], outp[1]);
+  ring_print(got, "exp result");
+  DISPATCH_ALL_FIELDS(field, [&]() {
+    using sT = std::make_signed<ring2k_t>::type;
+    NdArrayView<sT> got_view(got);
+
+    double max_err = 0.0;
+    for (int64_t i = 0; i < numel; ++i) {
+      double expected = std::exp(real_vec[i]);
+      expected = static_cast<double>(std::round((expected * (1L << fxp)))) / (1L << fxp);
+      double got = static_cast<double>(got_view[i]) / (1L << fxp);
+      std::cout << "expected: " << fmt::format("{0:f}", expected)
+                << ", got: " << fmt::format("{0:f}", got) << std::endl;
+      std::cout << "expected: "
+                << fmt::format("{0:b}",
+                               static_cast<ring2k_t>(expected * (1L << fxp)))
+                << ", got: " << fmt::format("{0:b}", got_view[i]) << std::endl;
+      max_err = std::max(max_err, std::abs(expected - got));
+    }
+    ASSERT_LE(max_err, 1e-0);
+  });
+}
+
+
 
 }  // namespace spu::mpc::test

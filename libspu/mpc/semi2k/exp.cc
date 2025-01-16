@@ -18,6 +18,7 @@
 
 #include "libspu/mpc/utils/gfmp.h"
 #include "libspu/mpc/utils/ring_ops.h"
+#include "libspu/core/trace.h"
 
 namespace spu::mpc::semi2k {
 

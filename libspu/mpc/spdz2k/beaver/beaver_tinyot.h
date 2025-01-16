@@ -92,6 +92,7 @@ class BeaverTinyOt final : public Beaver {
   // get exactly the same random variable.
   NdArrayRef genPublCoin(FieldType field, int64_t numel) override;
 
+
   // ROT encapsulation
   // s[i] = (a[i] == 0) ? q0[i] : q1[i]
   void rotSend(FieldType field, NdArrayRef* q0, NdArrayRef* q1);

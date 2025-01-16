@@ -89,6 +89,7 @@ class BeaverTfpUnsafe final : public Beaver {
   // public coin, used in malicious model, all party generate new seed, then
   // get exactly the same random variable.
   NdArrayRef genPublCoin(FieldType field, int64_t numel) override;
+
 };
 
 }  // namespace spu::mpc::spdz2k

@@ -16,7 +16,7 @@
 
 #include "libspu/mpc/kernel.h"
 
-namespace spu::mpc::semi2k {
+namespace spu::mpc::spdz2k {
 
 
 class ExpA : public UnaryKernel {

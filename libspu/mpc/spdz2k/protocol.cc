@@ -24,6 +24,7 @@
 #include "libspu/mpc/spdz2k/state.h"
 #include "libspu/mpc/spdz2k/type.h"
 #include "libspu/mpc/standard_shape/protocol.h"
+#include "exp.h"
 
 namespace spu::mpc {
 
@@ -53,6 +54,10 @@ void regSpdz2kProtocol(SPUContext* ctx,
                   spdz2k::NegateA, spdz2k::AddAP, spdz2k::AddAA, spdz2k::MulAP,
                   spdz2k::MulAA, spdz2k::MatMulAP, spdz2k::MatMulAA,
                   spdz2k::LShiftA, spdz2k::TruncA, spdz2k::RandA, spdz2k::HadamAA>();
+
+  if (lctx->WorldSize() == 2) {
+    ctx->prot()->regKernel<spdz2k::ExpA>();
+  }
 
   // register boolean kernels
   ctx->prot()
