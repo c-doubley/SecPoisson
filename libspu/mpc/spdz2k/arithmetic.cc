@@ -446,20 +446,6 @@ NdArrayRef MulAP::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   return makeAShare(z, z_mac, field);
 }
 
-void printNdArrayRef(const NdArrayRef& arr, const std::string& name) {
-  std::cout << name << " = [";
-  DISPATCH_ALL_FIELDS(arr.eltype().as<Ring2k>()->field(), [&]() {
-    using sT = std::make_signed<ring2k_t>::type;
-    NdArrayView<sT> view(arr);
-    for (int64_t i = 0; i < arr.numel(); ++i) {
-      std::cout << view[i];
-      if (i < arr.numel() - 1) {
-        std::cout << ", ";
-      }
-    }
-  });
-  std::cout << "]" << std::endl;
-}
 
 // Refer to:
 // 3.3 Reducing the Number of Masks && 4 Online Phase
@@ -507,9 +493,6 @@ NdArrayRef MulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   // don't use BatchOpen to reduce the number of masks
   // auto [p_e, masked_e_mac] = beaver->BatchOpen(e, e_mac, k, s);
   // auto [p_f, masked_f_mac] = beaver->BatchOpen(f, f_mac, k, s);
-  printNdArrayRef(p_e, "p_e");
-  printNdArrayRef(e_mac, "e_mac");
-
 
   SPU_ENFORCE(beaver->BatchMacCheck(p_e, e_mac, k, s));
   SPU_ENFORCE(beaver->BatchMacCheck(p_f, f_mac, k, s));
