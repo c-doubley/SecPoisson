@@ -308,15 +308,18 @@ bool BeaverTfpUnsafe::BatchMacCheck(const NdArrayRef& open_value,
   const auto field = open_value.eltype().as<Ring2k>()->field();
   const int64_t numel = open_value.numel();
   const size_t mac_bits = k + s;
-
+  // std::cout << " BatchMacCheck here1" << std::endl;
   auto* comm = comm_.get();
   const auto& lctx = comm_->lctx();
   const auto key = spdz_key_;
 
   // 1. get l public random values, compute plain y
   auto pub_r = genPublCoin(field, numel).reshape({1, numel});
+  // std::cout << " BatchMacCheck here1" << std::endl;
+  std::cout << "field: " << field << std::endl;
+  std::cout << "s: " << s << ", field bits: " << SizeOf(field) * 8 << std::endl;
   ring_bitmask_(pub_r, 0, s);
-
+  std::cout << " BatchMacCheck here2" << std::endl;
   // 2. check_value = pub_r * open_value
   //    check_mac = pub_r * mac
   auto check_value = ring_mmul(pub_r, open_value.reshape({numel, 1}));
@@ -349,9 +352,10 @@ bool BeaverTfpUnsafe::BatchMacCheck(const NdArrayRef& open_value,
   }
 
   if (mac_bits != 0) {
+    std::cout << "mac_bits: " << mac_bits << ", field bits: " << SizeOf(field) * 8 << std::endl;
     ring_bitmask_(plain_z, 0, mac_bits);
   }
-
+  std::cout << " BatchMacCheck here3" << std::endl;
   return ring_all_equal(plain_z, ring_zeros(field, {1}));
 }
 

@@ -446,6 +446,21 @@ NdArrayRef MulAP::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   return makeAShare(z, z_mac, field);
 }
 
+void printNdArrayRef(const NdArrayRef& arr, const std::string& name) {
+  std::cout << name << " = [";
+  DISPATCH_ALL_FIELDS(arr.eltype().as<Ring2k>()->field(), [&]() {
+    using sT = std::make_signed<ring2k_t>::type;
+    NdArrayView<sT> view(arr);
+    for (int64_t i = 0; i < arr.numel(); ++i) {
+      std::cout << view[i];
+      if (i < arr.numel() - 1) {
+        std::cout << ", ";
+      }
+    }
+  });
+  std::cout << "]" << std::endl;
+}
+
 // Refer to:
 // 3.3 Reducing the Number of Masks && 4 Online Phase
 // SPDZ2k: Efficient MPC mod 2k for Dishonest Majority
@@ -454,29 +469,34 @@ NdArrayRef MulAP::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
 // TODO: use DISPATCH_ALL_FIELDS instead of ring ops to improve performance
 NdArrayRef MulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
                        const NdArrayRef& rhs) const {
+
+
   const auto field = lhs.eltype().as<Ring2k>()->field();
   auto* comm = ctx->getState<Communicator>();
   auto* beaver = ctx->getState<Spdz2kState>()->beaver();
   const auto key = ctx->getState<Spdz2kState>()->key();
   const auto k = ctx->getState<Spdz2kState>()->k();
   const auto s = ctx->getState<Spdz2kState>()->s();
-
+  std::cout << "mulAA here1 " << std::endl; 
   // in
   const auto& x = getValueShare(lhs);
   const auto& x_mac = GetMacShare(ctx, lhs);
   const auto& y = getValueShare(rhs);
   const auto& y_mac = GetMacShare(ctx, rhs);
-
+  std::cout << "mulAA here2 " << std::endl; 
+  std::cout << "mulAA field: " << field << std::endl;
   // e = x - a, f = y - b
   auto [vec, mac_vec] = beaver->AuthMul(field, lhs.shape(), k, s);
-
+  std::cout << "mulAA here3 " << std::endl; 
   auto [a, b, c] = vec;
   auto [a_mac, b_mac, c_mac] = mac_vec;
+  std::cout << "mulAA here4 " << std::endl; 
 
   auto e = ring_sub(x, a);
   auto e_mac = ring_sub(x_mac, a_mac);
   auto f = ring_sub(y, b);
   auto f_mac = ring_sub(y_mac, b_mac);
+
 
   // open e, f
   auto res = vmap({e, f}, [&](const NdArrayRef& s) {
@@ -484,13 +504,18 @@ NdArrayRef MulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   });
   auto p_e = std::move(res[0]);
   auto p_f = std::move(res[1]);
-
+  std::cout << "mulAA here5 " << std::endl; 
   // don't use BatchOpen to reduce the number of masks
   // auto [p_e, masked_e_mac] = beaver->BatchOpen(e, e_mac, k, s);
   // auto [p_f, masked_f_mac] = beaver->BatchOpen(f, f_mac, k, s);
+  printNdArrayRef(p_e, "p_e");
+  printNdArrayRef(e_mac, "e_mac");
+  std::cout << "BatchMacCheck: key = " << key << std::endl;
+  std::cout << "BatchMacCheck: k = " << k << ", s = " << s << std::endl;
+
   SPU_ENFORCE(beaver->BatchMacCheck(p_e, e_mac, k, s));
   SPU_ENFORCE(beaver->BatchMacCheck(p_f, f_mac, k, s));
-
+  std::cout << "mulAA here6 " << std::endl; 
   auto p_ef = ring_mul(p_e, p_f);
 
   // z = p_e * b + p_f * a + c;
@@ -500,7 +525,7 @@ NdArrayRef MulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
     // z += p_e * p_f;
     ring_add_(z, p_ef);
   }
-
+  std::cout << "mulAA here7 " << std::endl; 
   // zmac = p_e * b_mac + p_f * a_mac + c_mac + p_e * p_f * key;
   auto zmac = ring_add(ring_mul(p_e, b_mac), ring_mul(p_f, a_mac));
   ring_add_(zmac, c_mac);

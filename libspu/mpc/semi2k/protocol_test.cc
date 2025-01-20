@@ -533,8 +533,11 @@ TEST_P(BeaverCacheTest, ExpA) {
 
   ring2k_shr[0] = ring_rand(field, rnd_msg.shape())
                       .as(makeType<spu::mpc::semi2k::AShrTy>(field));
+
+  std::cout << "ring2k_shr[0] type after assignment: " << ring2k_shr[0].eltype() << std::endl;
   ring2k_shr[1] = ring_sub(rnd_msg, ring2k_shr[0])
                       .as(makeType<spu::mpc::semi2k::AShrTy>(field));
+  std::cout << "ring2k_shr[1] type after assignment: " << ring2k_shr[1].eltype() << std::endl;
 
   NdArrayRef outp_pub;
   NdArrayRef outp[2];

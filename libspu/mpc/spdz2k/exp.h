@@ -14,6 +14,7 @@
 
 #pragma once
 
+
 #include "libspu/mpc/kernel.h"
 
 namespace spu::mpc::spdz2k {
