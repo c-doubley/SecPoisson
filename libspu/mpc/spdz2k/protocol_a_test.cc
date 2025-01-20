@@ -298,10 +298,7 @@ TEST_P(BeaverCacheTest, ExpA) {
 
     size_t bytes = lctx->GetStats()->sent_bytes;
     size_t action = lctx->GetStats()->sent_actions;
-    // auto* beaver = kcontext.getState<Spdz2kState>()->beaver();
-    // const auto k = kcontext.getState<Spdz2kState>()->k();
-    // const auto s = kcontext.getState<Spdz2kState>()->s();
-    // auto* comm = kcontext.getState<Communicator>();
+
 
     spu::mpc::spdz2k::P2A p2a;
     ring2k_shr[rank] = p2a.proc(&kcontext, rnd_msg);
