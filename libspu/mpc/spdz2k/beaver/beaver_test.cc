@@ -400,4 +400,75 @@ TEST_P(BeaverTest, AuthDot) {
   });
 }
 
+TEST_P(BeaverTest, AuthHadam) {
+  const auto factory = std::get<0>(GetParam()).first;
+  const size_t kWorldSize = std::get<1>(GetParam());
+  const FieldType kField = std::get<2>(GetParam());
+  const size_t k = std::get<4>(GetParam());
+  const size_t s = std::get<5>(GetParam());
+  const int64_t M = 5;  // 矩阵行数
+  const int64_t N = 5;  // 矩阵列数
+
+  std::vector<uint128_t> keys(kWorldSize);
+  std::vector<Beaver::Triple_Pair> triples(kWorldSize);
+
+  // 模拟多个参与方
+  utils::simulate(kWorldSize, [&](std::shared_ptr<yacl::link::Context> lctx) {
+    auto beaver = factory(lctx);
+    keys[lctx->Rank()] = beaver->InitSpdzKey(kField, s);  // 初始化 SPDZ 密钥
+    triples[lctx->Rank()] = beaver->AuthHadam(kField, M, N, k, s);  // 生成哈达玛积三元组
+  });
+
+  // 验证结果
+  uint128_t sum_key = 0;
+  auto sum_a = ring_zeros(kField, {M, N});
+  auto sum_b = ring_zeros(kField, {M, N});
+  auto sum_c = ring_zeros(kField, {M, N});
+  auto sum_a_mac = ring_zeros(kField, {M, N});
+  auto sum_b_mac = ring_zeros(kField, {M, N});
+  auto sum_c_mac = ring_zeros(kField, {M, N});
+
+  // 累加所有参与方的结果
+  for (Rank r = 0; r < kWorldSize; r++) {
+    sum_key += keys[r];
+
+    const auto& [vec, mac_vec] = triples[r];
+    const auto& [a, b, c] = vec;
+    const auto& [a_mac, b_mac, c_mac] = mac_vec;
+
+    EXPECT_EQ(a.numel(), M * N);
+    EXPECT_EQ(b.numel(), M * N);
+    EXPECT_EQ(c.numel(), M * N);
+    EXPECT_EQ(a_mac.numel(), M * N);
+    EXPECT_EQ(b_mac.numel(), M * N);
+    EXPECT_EQ(c_mac.numel(), M * N);
+
+    ring_add_(sum_a, a);
+    ring_add_(sum_b, b);
+    ring_add_(sum_c, c);
+    ring_add_(sum_a_mac, a_mac);
+    ring_add_(sum_b_mac, b_mac);
+    ring_add_(sum_c_mac, c_mac);
+  }
+
+  // 验证哈达玛积的正确性：C = A ⊙ B
+  auto expected_c = ring_mul(sum_a, sum_b);  // 计算预期的哈达玛积
+  EXPECT_TRUE(ring_all_equal(sum_c, expected_c))
+      << "C should be equal to A ⊙ B, but got:\n"
+      << "A: " << sum_a << "\nB: " << sum_b << "\nC: " << sum_c
+      << "\nExpected C: " << expected_c;
+
+  // 验证 MAC 的正确性：MAC = value * key
+  EXPECT_TRUE(ring_all_equal(ring_mul(sum_a, sum_key), sum_a_mac))
+      << "A_mac should be equal to A * key, but got:\n"
+      << "A: " << sum_a << "\nKey: " << sum_key << "\nA_mac: " << sum_a_mac;
+  EXPECT_TRUE(ring_all_equal(ring_mul(sum_b, sum_key), sum_b_mac))
+      << "B_mac should be equal to B * key, but got:\n"
+      << "B: " << sum_b << "\nKey: " << sum_key << "\nB_mac: " << sum_b_mac;
+  EXPECT_TRUE(ring_all_equal(ring_mul(sum_c, sum_key), sum_c_mac))
+      << "C_mac should be equal to C * key, but got:\n"
+      << "C: " << sum_c << "\nKey: " << sum_key << "\nC_mac: " << sum_c_mac;
+}
+
+
 }  // namespace spu::mpc::spdz2k

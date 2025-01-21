@@ -37,13 +37,13 @@ RuntimeConfig makeConfig(FieldType field) {
   return conf;
 }
 
-// std::unique_ptr<SPUContext> makeMpcSpdz2kProtocol(
-//     const RuntimeConfig& rt, const std::shared_ptr<yacl::link::Context>& lctx) {
-//   RuntimeConfig mpc_rt = rt;
-//   mpc_rt.set_beaver_type(RuntimeConfig_BeaverType_MultiParty);
+std::unique_ptr<SPUContext> makeMpcSpdz2kProtocol(
+    const RuntimeConfig& rt, const std::shared_ptr<yacl::link::Context>& lctx) {
+  RuntimeConfig mpc_rt = rt;
+  mpc_rt.set_beaver_type(RuntimeConfig_BeaverType_MultiParty);
 
-//   return makeSpdz2kProtocol(mpc_rt, lctx);
-// }
+  return makeSpdz2kProtocol(mpc_rt, lctx);
+}
 }  // namespace
 
 // INSTANTIATE_TEST_SUITE_P(
@@ -60,30 +60,29 @@ RuntimeConfig makeConfig(FieldType field) {
 
 class BeaverCacheTest : public ::testing::TestWithParam<OpTestParams> {};
 
+
+
 // INSTANTIATE_TEST_SUITE_P(
-//     Spdz2k, BeaverCacheTest,
-//     testing::Combine(testing::Values(CreateObjectFn(makeSpdz2kProtocol, "tfp")),
-//                                      CreateObjectFn(makeMpcSpdz2kProtocol, "mpc"),         //
-//                      testing::Values(makeConfig(FieldType::FM32),    //
-//                                      makeConfig(FieldType::FM64),    //
-//                                      makeConfig(FieldType::FM128)),  //
-//                      testing::Values(2, 3, 5)),                      //
-//     [](const testing::TestParamInfo<BeaverCacheTest::ParamType>& p) {
+//     Spdz2k, ArithmeticTest,
+//     testing::Values(
+//         std::tuple{CreateObjectFn(makeSpdz2kProtocol, "tfp"), makeConfig(FieldType::FM64), 2}
+//     ),
+//     [](const testing::TestParamInfo<ArithmeticTest::ParamType>& p) {
 //       return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
 //                          std::get<1>(p.param).field(), std::get<2>(p.param));
-//       ;
-//     });
+//     }
+// );
 
 INSTANTIATE_TEST_SUITE_P(
     Spdz2k, ArithmeticTest,
-    testing::Values(
-        std::tuple{CreateObjectFn(makeSpdz2kProtocol, "tfp"), makeConfig(FieldType::FM64), 2}
-    ),
+    testing::Values(std::tuple{CreateObjectFn(makeSpdz2kProtocol, "tfp"),
+                               makeConfig(FieldType::FM64), 2},
+                    std::tuple{CreateObjectFn(makeMpcSpdz2kProtocol, "mpc"),
+                               makeConfig(FieldType::FM32), 2}),
     [](const testing::TestParamInfo<ArithmeticTest::ParamType>& p) {
       return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
                          std::get<1>(p.param).field(), std::get<2>(p.param));
-    }
-);
+    });
 
 INSTANTIATE_TEST_SUITE_P(
     Spdz2k, BeaverCacheTest,

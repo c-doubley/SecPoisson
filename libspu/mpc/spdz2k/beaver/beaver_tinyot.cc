@@ -533,46 +533,57 @@ BeaverTinyOt::Triple_Pair BeaverTinyOt::AuthDot(FieldType field, int64_t M,
 
 // error need to change
 BeaverTinyOt::Triple_Pair BeaverTinyOt::AuthHadam(FieldType field, int64_t M,
-                                                int64_t N, size_t k,
-                                                size_t s) {
-  // Dot
-  auto [a_ext, b, c_ext] = dot(field, 2 * M, N, N, k, s);
+                                                  int64_t N, size_t k,
+                                                  size_t s) {
+  // 1. 生成 M*N 个逐元素三元组
+  auto [vec, mac_vec] = AuthMul(field, {M * N}, k, s);
+  const auto& [a, b, c] = vec;
+  const auto& [a_mac, b_mac, c_mac] = mac_vec;
 
-  // Authenticate
-  auto a_ext_mac = AuthArrayRef(a_ext, field, k, s);
-  auto b_mac = AuthArrayRef(b, field, k, s);
-  auto c_ext_mac = AuthArrayRef(c_ext, field, k, s);
+  // 2. 将逐元素三元组组合成矩阵
+  auto A = a.reshape({M, N});
+  auto B = b.reshape({M, N});
+  auto C = c.reshape({M, N});
+  auto A_mac = a_mac.reshape({M, N});
+  auto B_mac = b_mac.reshape({M, N});
+  auto C_mac = c_mac.reshape({M, N});
 
-  auto a = a_ext.slice({0, 0}, {M, N}, {1, 1});
-  auto a_mac = a_ext_mac.slice({0, 0}, {M, N}, {1, 1});
-  auto c = c_ext.slice({0, 0}, {M, N}, {1, 1});
-  auto c_mac = c_ext_mac.slice({0, 0}, {M, N}, {1, 1});
+  // 3. 牺牲检查（Sacrifice Check）
+  // 生成额外的随机矩阵 A2 和 B2
+  auto A2 = ring_rand(field, {M, N});
+  auto B2 = ring_rand(field, {M, N});
+  auto C2 = ring_mul(A2, B2);  // 计算哈达玛积 C2 = A2 ⊙ B2
 
-  // Sacrifice
-  auto a2 = a_ext.slice({M, 0}, {2 * M, N}, {1, 1});
-  auto a2_mac = a_ext_mac.slice({M, 0}, {2 * M, N}, {1, 1});
-  auto c2 = c_ext.slice({M, 0}, {2 * M, N}, {1, 1});
-  auto c2_mac = c_ext_mac.slice({M, 0}, {2 * M, N}, {1, 1});
+  // 认证 A2、B2 和 C2
+  auto A2_mac = AuthArrayRef(A2, field, k, s);
+  auto B2_mac = AuthArrayRef(B2, field, k, s);
+  auto C2_mac = AuthArrayRef(C2, field, k, s);
 
-  auto t = prg_state_->genPubl(field, {M, M});
-  auto rou = ring_sub(ring_mmul(t, a), a2);
-  auto rou_mac = ring_sub(ring_mmul(t, a_mac), a2_mac);
+  // 生成随机系数 t
+  auto t = prg_state_->genPubl(field, {M, N});
 
+  // 计算 rou = t ⊙ A - A2
+  auto rou = ring_sub(ring_mul(t, A), A2);
+  auto rou_mac = ring_sub(ring_mul(t, A_mac), A2_mac);
+
+  // 打开 rou 并验证 MAC
   auto [pub_rou, check_rou_mac] = BatchOpen(rou, rou_mac, k, s);
   SPU_ENFORCE(BatchMacCheck(pub_rou, check_rou_mac, k, s));
 
-  auto t_delta = ring_sub(ring_mmul(t, c), c2);
-  auto delta = ring_sub(t_delta, ring_mmul(pub_rou, b));
+  // 计算 delta = t ⊙ C - C2 - pub_rou ⊙ B
+  auto t_delta = ring_sub(ring_mul(t, C), C2);
+  auto delta = ring_sub(t_delta, ring_mul(pub_rou, B));
 
-  auto t_delta_mac = ring_sub(ring_mmul(t, c_mac), c2_mac);
-  auto delta_mac = ring_sub(t_delta_mac, ring_mmul(pub_rou, b_mac));
+  // 计算 delta_mac
+  auto t_delta_mac = ring_sub(ring_mul(t, C_mac), C2_mac);
+  auto delta_mac = ring_sub(t_delta_mac, ring_mul(pub_rou, B_mac));
 
+  // 打开 delta 并验证 MAC
   auto [pub_delta, check_delta_mac] = BatchOpen(delta, delta_mac, k, s);
   SPU_ENFORCE(BatchMacCheck(pub_delta, check_delta_mac, k, s));
 
-  // Output
-  return {{a, b, c}, {a_mac, b_mac, c_mac}};
-
+  // 4. 输出认证的哈达玛积三元组
+  return {{A, B, C}, {A_mac, B_mac, C_mac}};
 }
 
 
