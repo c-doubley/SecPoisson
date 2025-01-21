@@ -616,8 +616,9 @@ NdArrayRef MatMulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   auto comm_cost = comm->getStats() - prev_comm;
 
   // 输出结果
-  SPDLOG_INFO("Beaver triple generation time: {} microseconds", duration.count());
-  SPDLOG_INFO("Beaver triple generation communication: {} bytes", comm_cost.comm);
+
+  SPDLOG_INFO("Beaver triple generation time: {} seconds", duration.count() / 1e6);
+  SPDLOG_INFO("Beaver triple generation communication: {} MB", comm_cost.comm / (1024.0 * 1024.0));
   SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
 
   // open x-a & y-b

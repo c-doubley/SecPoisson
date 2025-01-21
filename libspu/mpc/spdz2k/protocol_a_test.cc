@@ -142,7 +142,92 @@ bool verifyCost(Kernel* kernel, std::string_view name, FieldType field,
   return succeed;
 }
 
+bool verifyCost(Kernel* kernel, std::string_view name, const ce::Params& params,
+                const Communicator::Stats& cost, size_t repeated = 1) {
+  if (kernel->kind() == Kernel::Kind::Dynamic) {
+    return true;
+  }
 
+  auto comm = kernel->comm();
+  auto latency = kernel->latency();
+
+  bool succeed = true;
+  constexpr size_t kBitsPerBytes = 8;
+  const auto expectedComm = comm->eval(params) * repeated;
+  const auto realComm = cost.comm * kBitsPerBytes;
+
+  float diff;
+  if (expectedComm == 0) {
+    diff = realComm;
+  } else {
+    diff = std::abs(static_cast<float>(realComm - expectedComm)) / expectedComm;
+  }
+  if (realComm < expectedComm || diff > kernel->getCommTolerance()) {
+    fmt::print("Failed: {} comm mismatch, expected={}, got={}\n", name,
+               expectedComm, realComm);
+    succeed = false;
+  }
+
+  if (latency->eval(params) != cost.latency) {
+    fmt::print("Failed: {} latency mismatch, expected={}, got={}\n", name,
+               latency->eval(params), cost.latency);
+    succeed = false;
+  }
+
+  return succeed;
+}
+
+
+
+TEST_P(ArithmeticTest, MatMulAA_) {
+  const auto factory = std::get<0>(GetParam());
+  const RuntimeConfig& conf = std::get<1>(GetParam());
+  const size_t npc = std::get<2>(GetParam());
+
+  const int64_t M = 3;
+  const int64_t K = 400;
+  const int64_t N = 1;
+  const Shape shape_A = {M, K};
+  const Shape shape_B = {K, N};
+  const Shape shape_C = {M, N};
+
+  utils::simulate(npc, [&](const std::shared_ptr<yacl::link::Context>& lctx) {
+    auto obj = factory(conf, lctx);
+
+    /* GIVEN */
+    auto p0 = rand_p(obj.get(), shape_A);
+    auto p1 = rand_p(obj.get(), shape_B);
+    auto a0 = p2a(obj.get(), p0);
+    auto a1 = p2a(obj.get(), p1);
+
+    /* WHEN */
+    auto prev = obj->prot()->getState<Communicator>()->getStats();
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    auto tmp = mmul_aa(obj.get(), a0, a1);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    auto cost = obj->prot()->getState<Communicator>()->getStats() - prev;
+
+    auto r_aa = a2p(obj.get(), tmp);
+    auto r_pp = mmul_pp(obj.get(), p0, p1);
+
+    SPDLOG_INFO("MatMul time: {} seconds", duration.count() / 1e6); // 转换为秒
+    SPDLOG_INFO("MatMul communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+
+
+    /* THEN */
+    EXPECT_VALUE_EQ(r_aa, r_pp);
+    ce::Params params = {{"K", SizeOf(conf.field()) * 8},
+                         {"N", npc},
+                         {"m", M},
+                         {"n", N},
+                         {"k", K}};
+    EXPECT_TRUE(verifyCost(obj->prot()->getKernel("mmul_aa"), "mmul_aa", params,
+                           cost, 1));
+  });
+}
 
 TEST_P(ArithmeticTest, HadamSS) {
   printf("\n=== Starting test case HadamSS ===\n");
@@ -196,11 +281,9 @@ TEST_P(ArithmeticTest, HadamSS) {
 
 
     /* THEN */
-    printf("=== Performance Results ===\n");
-    printf("Communication: %zu bytes\n", cost.comm);
-    printf("Latency: %zu rounds\n", cost.latency);
-    printf("Runtime: %ld microseconds\n", duration.count());
-    printf("=========================\n");
+    SPDLOG_INFO("Beaver triple generation time: {} seconds", duration.count() / 1e6); // 转换为秒
+    SPDLOG_INFO("Beaver triple generation communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+    SPDLOG_INFO("Beaver triple generation rounds: {}", cost.latency);
 
     
     // 转换回明文进行验证
