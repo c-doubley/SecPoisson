@@ -18,12 +18,12 @@ import pandas as pd
 import jax
 import jax.numpy as jnp
 from sklearn import metrics
+import time
 
 import spu
 import spu.utils.distributed as ppd
 
 def predict(x, w, b):
-    # 泊松回归使用指数链接函数
     return jnp.exp(jnp.matmul(x, w) + b)
 
 def poisson_loss(x, y, w, b, use_cache):
@@ -32,8 +32,7 @@ def poisson_loss(x, y, w, b, use_cache):
         b = spu.experimental.make_cached_var(b)
     
     pred = predict(x, w, b)
-    # 泊松回归的负对数似然损失
-    loss = jnp.mean(pred - y * jnp.log(pred + 1e-10))  # 添加小epsilon防止log(0)
+    loss = jnp.mean(pred - y * jnp.log(pred + 1e-10))
     
     if use_cache:
         w = spu.experimental.drop_cached_var(w, loss)
@@ -74,7 +73,11 @@ class PoissonRegression:
 
 def run_on_cpu(x_train, y_train):
     pr = PoissonRegression()
+    print("Training on CPU:")
+    start_time = time.time()
     w, b = jax.jit(pr.fit_auto_grad)(x_train, y_train)
+    train_time = time.time() - start_time
+    print(f"CPU train time : {train_time:.6f} seconds")
     return w, b
 
 SPU_OBJECT_META_PATH = "/tmp/driver_spu_jax_pr_object.txt"
@@ -101,7 +104,6 @@ def compute_score(x_test, y_test, W_r, b_r, type):
     pred = predict(x_test, W_r, b_r)
     mse = jnp.mean((y_test - pred) ** 2)
     print(f"MSE({type})={mse}")
-    # 对于二值数据，额外计算准确率
     pred_binary = (pred > 0.5).astype(int)
     accuracy = jnp.mean(pred_binary == y_test)
     print(f"Accuracy({type})={accuracy}")
@@ -118,7 +120,11 @@ def run_on_spu(x, y, use_cache=False):
     x1 = ppd.device("P1")(lambda x: x[:, :split_idx])(x)
     x2 = ppd.device("P2")(lambda x: x[:, split_idx:])(x)
     y = ppd.device("P1")(lambda x: x)(y)
+    print(f"Training on SPU (use_cache={use_cache}):")
+    start_time = time.time()
     W, b = train(x1, x2, y)
+    train_time = time.time() - start_time
+    print(f"SPU train time (use_cache={use_cache}): {train_time:.6f} seconds")
     return W, b
 
 if __name__ == "__main__":
@@ -133,7 +139,6 @@ if __name__ == "__main__":
 
     ppd.init(conf["nodes"], conf["devices"])
 
-    # 读取本地数据集
     x = pd.read_csv("examples/python/ml/jax_pr/balloonX.csv", header=None).values
     y = pd.read_csv("examples/python/ml/jax_pr/balloony.csv", header=None).values.ravel()
     x = jnp.array(x, dtype=jnp.float32)
