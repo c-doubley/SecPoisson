@@ -164,6 +164,10 @@ NdArrayRef ExpA::proc(KernelEvalContext* ctx, const NdArrayRef& in) const {
   const auto& x = getValueShare(in);
   const auto& x_mac = GetMacShare(ctx, in);
 
+  auto start_time = std::chrono::high_resolution_clock::now();
+  auto prev_comm = comm->getStats();
+
+
   // c1 = a1 * b1
   auto [vec1, mac_vec1] = beaver->AuthMul(field, in.shape(), k, s);
 
@@ -206,6 +210,15 @@ NdArrayRef ExpA::proc(KernelEvalContext* ctx, const NdArrayRef& in) const {
     r_prime = ring_add(recv_b2, b2);
   }
   
+  // 计算耗时和通信量
+  auto end_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+  auto comm_cost = comm->getStats() - prev_comm;
+
+  // 输出结果
+  SPDLOG_INFO("Exp offline time: {} seconds", duration.count() / 1e6);
+  SPDLOG_INFO("Exp offline communication: {} bytes", comm_cost.comm / (1024.0 * 1024.0));
+  SPDLOG_INFO("Exp offline rounds: {}", comm_cost.latency);
 
   /*
     这里不删先,纯是测试e^x的

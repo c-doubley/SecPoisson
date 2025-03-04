@@ -543,8 +543,8 @@ NdArrayRef HadamAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   auto comm_cost = comm->getStats() - prev_comm;
 
   // 输出结果
-  SPDLOG_INFO("Beaver triple generation time: {} microseconds", duration.count());
-  SPDLOG_INFO("Beaver triple generation communication: {} bytes", comm_cost.comm);
+  SPDLOG_INFO("Beaver triple generation time: {} seconds", duration.count() / 1e6);
+  SPDLOG_INFO("Beaver triple generation communication: {} bytes", comm_cost.comm / (1024.0 * 1024.0));
   SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
 
   // open x-a & y-b
@@ -610,16 +610,16 @@ NdArrayRef MatMulAA::proc(KernelEvalContext* ctx, const NdArrayRef& lhs,
   auto [a, b, c] = vec;
   auto [a_mac, b_mac, c_mac] = mac_vec;
 
-  // 计算耗时和通信量
+  // // 计算耗时和通信量
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
   auto comm_cost = comm->getStats() - prev_comm;
 
-  // 输出结果
+  // // 输出结果
 
   SPDLOG_INFO("Beaver triple generation time: {} seconds", duration.count() / 1e6);
   SPDLOG_INFO("Beaver triple generation communication: {} MB", comm_cost.comm / (1024.0 * 1024.0));
-  SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
+  // SPDLOG_INFO("Beaver triple generation rounds: {}", comm_cost.latency);
 
   // open x-a & y-b
   auto res = vmap({ring_sub(x, a), ring_sub(y, b)}, [&](const NdArrayRef& s) {

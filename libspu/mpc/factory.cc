@@ -26,6 +26,8 @@
 #include "libspu/mpc/securenn/protocol.h"
 #include "libspu/mpc/semi2k/io.h"
 #include "libspu/mpc/semi2k/protocol.h"
+#include "libspu/mpc/spdz2k/io.h"
+#include "libspu/mpc/spdz2k/protocol.h"
 
 namespace spu::mpc {
 
@@ -76,7 +78,7 @@ std::unique_ptr<IoInterface> Factory::CreateIO(const RuntimeConfig& conf,
       return securenn::makeSecurennIo(conf.field(), npc);
     }
     case ProtocolKind::SPDZ2K: {
-      return securenn::makeSpdz2kIo(conf.field(), npc);
+      return spdz2k::makeSpdz2kIo(conf.field(), npc);
     }
     default: {
       SPU_THROW("Invalid protocol kind {}", conf.protocol());

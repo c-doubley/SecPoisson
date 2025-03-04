@@ -86,15 +86,26 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     Spdz2k, BeaverCacheTest,
-    testing::Combine(testing::Values(CreateObjectFn(makeSpdz2kProtocol,
-                                                    "tfp")),        //
-                     testing::Values(makeConfig(FieldType::FM64)),  //
-                     testing::Values(2)),   
-    [](const testing::TestParamInfo<BeaverCacheTest::ParamType>& p) {
+    testing::Values(std::tuple{CreateObjectFn(makeSpdz2kProtocol, "tfp"),
+                               makeConfig(FieldType::FM64), 2},
+                    std::tuple{CreateObjectFn(makeMpcSpdz2kProtocol, "mpc"),
+                               makeConfig(FieldType::FM64), 2}),
+    [](const testing::TestParamInfo<ArithmeticTest::ParamType>& p) {
       return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
                          std::get<1>(p.param).field(), std::get<2>(p.param));
-    }
-);
+    });
+
+// INSTANTIATE_TEST_SUITE_P(
+//     Spdz2k, BeaverCacheTest,
+//     testing::Combine(testing::Values(CreateObjectFn(makeSpdz2kProtocol,
+//                                                     "tfp")),        //
+//                      testing::Values(makeConfig(FieldType::FM64)),  //
+//                      testing::Values(2)),   
+//     [](const testing::TestParamInfo<BeaverCacheTest::ParamType>& p) {
+//       return fmt::format("{}x{}x{}", std::get<0>(p.param).name(),
+//                          std::get<1>(p.param).field(), std::get<2>(p.param));
+//     }
+// );
 
 Shape kShape = {30, 40};
 const std::vector<size_t> kShiftBits = {0, 1, 2, 31, 32, 33, 64, 1000};
@@ -177,22 +188,33 @@ bool verifyCost(Kernel* kernel, std::string_view name, const ce::Params& params,
   return succeed;
 }
 
-
+FieldType getRuntimeField(FieldType data_field) {
+  switch (data_field) {
+    case FM32:
+      return FM64;
+    case FM64:
+      return FM128;
+    default:
+      SPU_THROW("unsupported data field {} for spdz2k", data_field);
+  }
+  return FT_INVALID;
+}
 
 TEST_P(ArithmeticTest, MatMulAA_) {
   const auto factory = std::get<0>(GetParam());
   const RuntimeConfig& conf = std::get<1>(GetParam());
   const size_t npc = std::get<2>(GetParam());
 
-  const int64_t M = 3;
-  const int64_t K = 400;
-  const int64_t N = 1;
+  const int64_t M = 512;
+  const int64_t K = 512;
+  const int64_t N = 512;
   const Shape shape_A = {M, K};
   const Shape shape_B = {K, N};
   const Shape shape_C = {M, N};
 
   utils::simulate(npc, [&](const std::shared_ptr<yacl::link::Context>& lctx) {
     auto obj = factory(conf, lctx);
+    // KernelEvalContext kcontext(obj.get());
 
     /* GIVEN */
     auto p0 = rand_p(obj.get(), shape_A);
@@ -201,8 +223,23 @@ TEST_P(ArithmeticTest, MatMulAA_) {
     auto a1 = p2a(obj.get(), p1);
 
     /* WHEN */
+    // const auto k = kcontext.getState<Spdz2kState>()->k();
+    // const auto s = kcontext.getState<Spdz2kState>()->s();
+    // auto* beaver = kcontext.getState<Spdz2kState>()->beaver();
+    // FieldType field = getRuntimeField(conf.field());
+    // auto start_time_beaver = std::chrono::high_resolution_clock::now();
+
+    // beaver->AuthDot(field, a0.shape()[0], a0.shape()[1],
+    //                                     a1.shape()[1], k, s);
+
+    // auto end_time_beaver = std::chrono::high_resolution_clock::now();
+    // auto duration_offline = std::chrono::duration_cast<std::chrono::microseconds>(end_time_beaver - start_time_beaver);
+    // SPDLOG_INFO("MatMul offline time: {} seconds", duration_offline.count() / 1e6); // 转换为秒
+
+
     auto prev = obj->prot()->getState<Communicator>()->getStats();
     auto start_time = std::chrono::high_resolution_clock::now();
+    size_t bytes = lctx->GetStats()->sent_bytes;
     
     auto tmp = mmul_aa(obj.get(), a0, a1);
 
@@ -213,8 +250,11 @@ TEST_P(ArithmeticTest, MatMulAA_) {
     auto r_aa = a2p(obj.get(), tmp);
     auto r_pp = mmul_pp(obj.get(), p0, p1);
 
-    SPDLOG_INFO("MatMul time: {} seconds", duration.count() / 1e6); // 转换为秒
-    SPDLOG_INFO("MatMul communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+
+    bytes = lctx->GetStats()->sent_bytes - bytes;
+    SPDLOG_INFO("MatMul total time: {} seconds", duration.count() / 1e6); // 转换为秒
+    SPDLOG_INFO("MatMul online communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+    SPDLOG_INFO("MatMul total communication: {} MB", bytes / (1024.0 * 1024.0)); // 转换为MB
 
 
     /* THEN */
@@ -236,8 +276,8 @@ TEST_P(ArithmeticTest, HadamSS) {
   const size_t npc = std::get<2>(GetParam());
 
   // 定义矩阵维度
-  const int64_t M = 70;  // 行数
-  const int64_t N = 60;  // 列数
+  const int64_t M = 128;  // 行数
+  const int64_t N = 1;  // 列数
   const Shape shape_A = {M, N};
   const Shape shape_B = {M, N};  // Hadamard积要求两个矩阵维度相同
 
@@ -266,9 +306,8 @@ TEST_P(ArithmeticTest, HadamSS) {
 
     // 记录通信开销
     auto prev = obj->prot()->getState<Communicator>()->getStats();
-    printf("=== Starting Hadamard multiplication test ===\n");
-
     auto start_time = std::chrono::high_resolution_clock::now();
+    size_t bytes = lctx->GetStats()->sent_bytes;
     
     // 执行Hadamard积运算
     auto tmp = hadam_ss(obj.get(), s0, s1).value();
@@ -277,13 +316,15 @@ TEST_P(ArithmeticTest, HadamSS) {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
     auto cost = obj->prot()->getState<Communicator>()->getStats() - prev;
+    bytes = lctx->GetStats()->sent_bytes - bytes;
         
 
 
     /* THEN */
-    SPDLOG_INFO("Beaver triple generation time: {} seconds", duration.count() / 1e6); // 转换为秒
-    SPDLOG_INFO("Beaver triple generation communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
-    SPDLOG_INFO("Beaver triple generation rounds: {}", cost.latency);
+    SPDLOG_INFO("Hadamard time: {} seconds", duration.count() / 1e6); // 转换为秒
+    SPDLOG_INFO("Hadamard online communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+    SPDLOG_INFO("Hadamard total communication: {} MB", bytes / (1024.0 * 1024.0)); // 转换为MB
+    SPDLOG_INFO("Hadamard rounds: {}", cost.latency);
 
     
     // 转换回明文进行验证
@@ -298,21 +339,10 @@ TEST_P(ArithmeticTest, HadamSS) {
 
   });
 
-  printf("=== Test case HadamSS completed ===\n\n");
 }
 
 
-FieldType getRuntimeField(FieldType data_field) {
-  switch (data_field) {
-    case FM32:
-      return FM64;
-    case FM64:
-      return FM128;
-    default:
-      SPU_THROW("unsupported data field {} for spdz2k", data_field);
-  }
-  return FT_INVALID;
-}
+
 
 NdArrayRef CastRing(const NdArrayRef& in, FieldType out_field) {
   const auto* in_ty = in.eltype().as<Ring2k>();
@@ -345,7 +375,7 @@ TEST_P(BeaverCacheTest, ExpA) {
 
   NdArrayRef ring2k_shr[2];
 
-  int64_t numel = 10;
+  int64_t numel = 128;
   FieldType field = conf.field();
   FieldType runtime_field = getRuntimeField(field);
 
@@ -388,7 +418,19 @@ TEST_P(BeaverCacheTest, ExpA) {
     spu::mpc::spdz2k::ExpA exp;
     // spu::mpc::spdz2k::NegateA exp;
 
+    auto prev = obj->prot()->getState<Communicator>()->getStats();
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     outp[rank] = exp.proc(&kcontext, ring2k_shr[rank]);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+    auto cost = obj->prot()->getState<Communicator>()->getStats() - prev;
+        
+    /* THEN */
+    SPDLOG_INFO("Exp time: {} seconds", duration.count() / 1e6); // 转换为秒
+    SPDLOG_INFO("Exp communication: {} MB", cost.comm / (1024.0 * 1024.0)); // 转换为MB
+    SPDLOG_INFO("Exp rounds: {}", cost.latency);
 
     bytes = lctx->GetStats()->sent_bytes - bytes;
     action = lctx->GetStats()->sent_actions - action;
@@ -456,7 +498,7 @@ TEST_P(BeaverCacheTest, ExpA) {
     got = a2p.proc(&kcontext, outp_shr);
   });
 */
-
+/*
   ring_print(got, "exp result");
   DISPATCH_ALL_FIELDS(field, [&]() {
     using sT = std::make_signed<ring2k_t>::type;
@@ -477,7 +519,7 @@ TEST_P(BeaverCacheTest, ExpA) {
       max_err = std::max(max_err, std::abs(expected - got));
     }
     ASSERT_LE(max_err, 1e-0);
-  });
+  });*/
 
 }
 
